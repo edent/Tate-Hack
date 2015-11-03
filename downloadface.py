@@ -1,6 +1,6 @@
 import sys, os
 import cv2
-import urllib
+import urllib2
 from urlparse import urlparse
 
 def detect(path):
@@ -27,19 +27,43 @@ def box(rects, img, file_name):
 
 def main():
     #   all.txt contains a list of thumbnail URLs
+    #   done.txt contains a list of all processed thumbnails - empty it if you want a fresh run
     for line in open('all.txt'):
+        # dirty way to allow resume: if line is in done file, ignore it
+        alreadydone = False
+        with open('done.txt', 'a+') as f:
+                for doneline in f:
+                        if line in doneline:
+                                alreadydone = True
+                                print "Skipping " + line
+                                break
+        f.close()
+
+        # line has been found, skip to next one
+        if alreadydone:
+                continue
+
+
         file_name = urlparse(line).path.split('/')[-1]
         print "URL is " + line
 
-        if (urllib.urlopen(line).getcode() == 200):
+        handle = urllib2.urlopen(line)
+        if (handle.getcode() == 200):
             #   Download to a temp file
-            urllib.urlretrieve(line, "temp.jpg")
+            with open(os.path.basename("temp.jpg"), "wb") as local_file:
+                local_file.write(handle.read())
+            #urllib2.urlretrieve(line, "temp.jpg")
             #   Detect the face(s)
             rects, img = detect("temp.jpg")
             #   Cut and kepp
             box(rects, img, file_name)
+            # add record of download
+            f = open('done.txt','a')
+            f.write(line)
+            f.close()
         else:
             print '404 - ' + line
+
 
  
 if __name__ == "__main__":
